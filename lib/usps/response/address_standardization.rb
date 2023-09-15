@@ -46,6 +46,17 @@ module USPS::Response
         :zip5 => node.search('Zip5').text,
         :zip4 => node.search('Zip4').text,
         :return_text => node.search('ReturnText').text,
+        :additional_info => {
+          :delivery_point => node.search('DeliveryPoint').text,
+          :carrier_route => node.search('CarrierRoute').text,
+          :footnotes => node.search('Footnotes').text,
+          :dpv_confirmation => node.search('DPVConfirmation').text,
+          :dpv_cmra => node.search('DPVCMRA').text,
+          :dpv_footnotes => node.search('DPVFootnotes').text,
+          :business => node.search('Business').text,
+          :central_delivery_point => node.search('CentralDeliveryPoint').text,
+          :vacant => node.search('Vacant').text
+        }
       )
     end
   end

@@ -4,7 +4,7 @@
 # the apartment, suite, etc... I have switched them to match how I see them on an envelope.
 # Additionally they are refered to address and extra_address though both address1 and address2
 # work. Just remember they are flip flopped based on the USPS documentation.
-class USPS::Address < Struct.new(:name, :company, :address1, :address2, :city, :state, :zip5, :zip4, :return_text)
+class USPS::Address < Struct.new(:name, :company, :address1, :address2, :city, :state, :zip5, :zip4, :return_text, :additional_info)
 
   # Alias address getters and setters for a slightly more expressive api
   alias :address  :address1
@@ -38,12 +38,11 @@ class USPS::Address < Struct.new(:name, :company, :address1, :address2, :city, :
   # Check with the USPS if this address can be verified and will in missing
   # fields (such as zip code) if they are available.
   def valid?
-    @error = nil
-    standardize
-    true
-  rescue USPS::Error => e
-    @error = e
-    false
+    raise
+  end
+
+  def standardized?
+    additional_info.present?
   end
 
   def standardize
@@ -68,5 +67,71 @@ class USPS::Address < Struct.new(:name, :company, :address1, :address2, :city, :
     end
 
     self
+  end
+
+  def verify
+    @error = nil
+    begin
+      standardize! unless standardized?
+    rescue USPS::Error => e
+      @error = e
+      raise e
+    end
+
+    result = {valid: nil, message: nil}
+    if additional_info[:dpv_confirmation].present?
+      if additional_info[:dpv_confirmation] == 'Y'
+        result[:valid] = true
+        result[:message] = 'Address was DPV confirmed for both primary and (if present) secondary numbers'
+      end
+
+      if additional_info[:dpv_confirmation] == 'N'
+        result[:valid] = false
+        result[:message] = 'Both primary and (if present) secondary number information failed to DPV confirm.'
+      end
+
+      if additional_info[:dpv_confirmation] == 'D'
+        result[:valid] = false
+        result[:message] = 'Address was DPV confirmed for the primary number only, and the secondary number information was missing.'
+      end
+
+      if additional_info[:dpv_confirmation] == 'S'
+        result[:valid] = false
+        result[:message] = 'Address was DPV confirmed for the primary number only, and the secondary number information was present by not confirmed.'
+      end
+    end
+
+    if additional_info[:footnotes].present?
+      if additional_info[:footnotes].include?('H')
+        result[:valid] = false
+        result[:message] = 'The address as submitted does not contain an apartment/suite number.'
+      end
+
+      if additional_info[:footnotes].include?('S')
+        result[:valid] = false
+        result[:message] = "This address's apartment/suite number was not valid."
+      end
+
+      if additional_info[:footnotes].include?('W')
+        result[:valid] = false
+        result[:message] = 'The United States Postal Service does not provide street delivery for this Zip Code.'
+      end
+
+      if additional_info[:footnotes].include?('F')
+        result[:valid] = false
+        result[:message] = 'Address Could Not Be Found in The National Directory File Database'
+      end
+    end
+
+    if return_text.present? && return_text.include?('address you entered was found but more information is needed')
+      result[:valid] = false
+      result[:message] = return_text if result[:message].blank?
+    end
+
+    if result[:valid].nil? && result[:message].nil?
+      result[:message] = additional_info.to_s
+    end
+
+    result
   end
 end

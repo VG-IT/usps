@@ -23,6 +23,7 @@ module USPS::Request
     def build
       super do |builder|
         @addresses.each_with_index do |addy, i|
+          builder.tag!('Revision', 1)
           builder.tag!('Address', :ID => i) do
             builder.tag!('FirmName', addy.firm)
 
